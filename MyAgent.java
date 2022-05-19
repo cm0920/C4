@@ -1,67 +1,81 @@
-public class MyAgent extends Agent {
+//stack on mid columns- need to take control for higher chances (horizontal + diagonal likely)
+//keep track of moves that are bad? such as invalids or loss moves
 
+public class MyAgent extends Agent {
+    /**
+     * Constructs a new agent.
+     *
+     * @param game   the game for the agent to play.
+     * @param iAmRed whether the agent is the red player.
+     */
     public MyAgent(Connect4Game game, boolean iAmRed) {
         super(game, iAmRed);
     }
 
     public void move() {
-        if (iCanWin() != - 1) {
-            moveOnColumn(iCanWin());
+        if(me() != -1){
+            moveOnColumn(me());
         }
-        else if (theyCanWin() != -1) {
-            moveOnColumn(theyCanWin());
+        else if(them() != -1){
+            moveOnColumn(them());
         }
-        else if (pairCheck() != -1) {
-            moveOnColumn(pairCheck());
-        }
-        else {
-            boolean[] blacklist = getBlacklistedColumns(true);
-            boolean[] greylist = getBlacklistedColumns(false);
+        else{
+            boolean[] bad = poorMoves(true);
+            boolean[] ok = poorMoves(false);
 
-            int count = 0;
-            for (boolean b: blacklist) {
-                if (b) count++;
+            int c = 0;
+            for(boolean b: bad){
+                if(b){
+                    c++;
+                }
             }
-            if (count == myGame.getColumnCount()) {
+            if(c == myGame.getColumnCount()){
                 moveOnColumn(randomMove());
                 return;
             }
 
-            for (int i = 0; i < myGame.getColumnCount() / 2; i++) {
+            for (int i = 0; i < myGame.getColumnCount() / 2; i++) { // ASSUMPTION OF BOARD DIMENSIONS
                 int mid = myGame.getColumnCount() / 2;
-                if (stackColumn(greylist, mid + i) != -1) {
+                if (midStack(ok, mid + i) != -1) {
                     moveOnColumn(mid + i);
                     return;
                 }
-                if (stackColumn(greylist, mid - i) != -1) {
+                if (midStack(ok, mid - i) != -1) {
                     moveOnColumn(mid - i);
                     return;
                 }
             }
 
-            for (int i = 0; i < greylist.length; i++) {
-                if (greylist[i] && !blacklist[i]) {
+            for(int i = 0; i < ok.length; i++){
+                if(ok[i] && !bad[i]){
                     moveOnColumn(i);
                     return;
                 }
             }
 
-
             moveOnColumn(randomMove());
         }
     }
 
+    public String getName() {
+        return "My Agent";
+    }
+
+    public int me(){
+        return canWin(iAmRed);
+    }
+
+    public int them(){
+        return canWin(!iAmRed);
+    }
 
     public void moveOnColumn(int columnNumber) {
         int lowestEmptySlotIndex = getLowestEmptyIndex(myGame.getColumn(columnNumber));
-        if (lowestEmptySlotIndex > -1)
-        {
+        if (lowestEmptySlotIndex > -1) {
             Connect4Slot lowestEmptySlot = myGame.getColumn(columnNumber).getSlot(lowestEmptySlotIndex);
-            if (iAmRed)
-            {
+            if (iAmRed) {
                 lowestEmptySlot.addRed();
-            } else
-            {
+            } else {
                 lowestEmptySlot.addYellow();
             }
         }
@@ -78,7 +92,6 @@ public class MyAgent extends Agent {
         return lowestEmptySlot;
     }
 
-
     public int randomMove() {
         for (int i = 0; i < myGame.getColumnCount(); i++) {
             if (!myGame.getColumn(i).getIsFull()) {
@@ -88,277 +101,285 @@ public class MyAgent extends Agent {
         return -1;
     }
 
-    public int iCanWin() {
-        return canWin(iAmRed);
-    }
-    public int theyCanWin() {
-        return canWin(!iAmRed);
-    }
-
-
-    public String getName() {
-        return "My Agent";
-    }
-
-    //
-
-    public int canWin(boolean toCheck) {
-        for (int i = 0; i < myGame.getColumnCount(); i++) {
-            if (longestRunVertical(i) == 3 && !myGame.getColumn(i).getIsFull()) {
+    public int canWin(boolean check){
+        //cols
+        //can next move lead to a vertical win?
+        for(int i = 0; i < myGame.getColumnCount(); i++){
+            if(vertCheck(i) == 3 && !myGame.getColumn(i).getIsFull()){
                 return i;
             }
         }
 
-        // @TODO fix. literally just use getLowestEmptyIndex. loop through columns instead of rows
+        //rows
+        //can next move lead to a horizontal win?
         for (int i = myGame.getRowCount() - 1; i >= 0; i--) {
-            char[] row = getRow(i);
-            if (isEmpty(row)) {
+            String[] row = getRow(i);
+            if (empty(row)) {
                 break;
             }
-            int count = countRow(row, toCheck);
+            int count = rowCount(row, check);
             if (count >= 3) {
-                char[] rowUnder;
+                String[] under;
                 if (i + 1 == myGame.getRowCount()) {
-                    rowUnder = new char[0];
+                    under = new String[0];
                 }
                 else {
-                    rowUnder = getRow(i + 1);
+                    under = getRow(i + 1);
                 }
-                int index = testRow(row, rowUnder, toCheck);
+                int index = test(row, under, check);
                 if (index != -1) {
                     return index;
                 }
             }
         }
-
-        for (int col = 0; col < myGame.getColumnCount(); col++) {
-            Connect4Column c = myGame.getColumn(col);
-            int lowest = getLowestEmptyIndex(c);
-            if (!c.getIsFull()) {
-                if (getDiagonalCount(col, lowest, toCheck, true) >= 3) {
-                    return col;
+        //diagonal
+        for(int c = 0; c < myGame.getColumnCount(); c++){
+            Connect4Column col = myGame.getColumn(c);
+            int low = getLowestEmptyIndex(col);
+            if(!col.getIsFull()){
+                if(countDiagonal(c, low, check, true) >= 3){
+                    return c;
                 }
-                if (getDiagonalCount(col, lowest, toCheck, false) >= 3) {
-                    return col;
+                if(countDiagonal(c, low, check, false) >= 3){
+                    return c;
+                }
+            }
+        }
+        //if no winning moves...
+        return -1;
+    }
+
+    public boolean nextCheck(int col, boolean check){
+        Connect4Column c = myGame.getColumn(col);
+        if(c.getIsFull()){
+            return false;
+        }
+        int low = getLowestEmptyIndex(c);
+
+        if(low >= 0){
+            String[] row = getRow(low);
+            if(!(empty(row))){
+                int count = 0;
+
+                for(int cfLeft = col - 1; cfLeft >= 0; cfLeft--){
+                    Connect4Slot s = myGame.getColumn(cfLeft).getSlot(low);
+                    if(s.getIsFilled() && s.getIsRed() == check){
+                        count++;
+                    }
+                    else{
+                        break;
+                    }
+                }
+                for(int cfRight = col + 1; cfRight < myGame.getColumnCount(); cfRight++){
+                    Connect4Slot s = myGame.getColumn(cfRight).getSlot(low);
+                    if(s.getIsFilled() && s.getIsRed() == check){
+                        count++;
+                    }
+                    else{
+                        break;
+                    }
+                }
+                if(count >= 3){
+                    return true;
+                }
+            }
+        }
+        if(countDiagonal(col, low, check, true) >= 3){
+            return true;
+        }
+        else{
+            return countDiagonal(col, low, check, false) >= 3;
+        }
+    }
+
+    public int test(String[] row, String[] under, boolean c){
+        for(int i = 0; i < row.length; i++){
+            if(row[i].equals("NA")){
+                if(under.length != 0){
+                    if(under[i].equals("NA")){
+                        break;
+                    }
+                }
+                int count = 0;
+                String spotC;
+                String[] temp = new String[row.length];
+                System.arraycopy(row, 0, temp, 0, row.length);
+                if(c){
+                    spotC = "R";
+                }
+                else{
+                    spotC = "Y";
+                }
+                temp[i] = spotC;
+                for(String s: temp){
+                    if(s.equals(spotC)){
+                        count++;
+                    }
+                    else{
+                        count = 0;
+                    }
+
+                    if(count == 4){
+                        return i;
+                    }
                 }
             }
         }
         return -1;
     }
 
-    public boolean canWinInTwo(int col, boolean toCheck) {
-        Connect4Column c = myGame.getColumn(col);
-        if (c.getIsFull()) return false;
-
-        int lowest = getLowestEmptyIndex(c) - 1; // can win is just checking one spot above
-
-        if (lowest >= 0) {
-            char[] row = getRow(lowest);
-            if (!isEmpty(row)) {
-                int count = 0;
-
-                for (int colTraverse = col + 1; colTraverse < myGame.getColumnCount(); colTraverse++) {
-                    Connect4Slot slot = myGame.getColumn(colTraverse).getSlot(lowest);
-                    if (slot.getIsFilled() && slot.getIsRed() == toCheck) {
-                        count++;
-                    }
-                    else {
-                        break;
-                    }
-                }
-
-                for (int colTraverse = col - 1; colTraverse >= 0; colTraverse--) {
-                    Connect4Slot slot = myGame.getColumn(colTraverse).getSlot(lowest);
-                    if (slot.getIsFilled() && slot.getIsRed() == toCheck) {
-                        count++;
-                    }
-                    else {
-                        break;
-                    }
-                }
-                if (count >= 3) {
-                    return true;
-                }
-            }
-        }
-
-        if (getDiagonalCount(col, lowest, toCheck, true) >= 3) {
-            return true;
-        }
-        return getDiagonalCount(col, lowest, toCheck, false) >= 3;
-    }
-
-    // vert
-
-    public int longestRunVertical(int col) {
+    //column
+    public int vertCheck(int c){
+        Connect4Column col = myGame.getColumn(c);
         int count = 0;
-        Connect4Column c = myGame.getColumn(col);
-        int rowStart = getLowestEmptyIndex(c) + 1;
-        for (int row = rowStart; row < myGame.getRowCount(); row++) {
-            Connect4Slot slot = c.getSlot(row);
-            boolean topSlot = c.getSlot(rowStart).getIsRed();
-            if (slot.getIsRed() == topSlot) {
+        for(int r = getLowestEmptyIndex(col) + 1; r < myGame.getRowCount(); r++){
+            Connect4Slot slot = col.getSlot(r);
+            boolean top = col.getSlot(getLowestEmptyIndex(col) + 1).getIsRed();
+            if(slot.getIsRed() == top) {
                 count++;
                 if (count == 3) {
                     return 3;
                 }
             }
-            else {
+            else{
                 return count;
             }
         }
         return 0;
     }
 
-    // horizontal
+    //row
 
-    public char[] getRow(int r) {
-        char[] row = new char[myGame.getColumnCount()];
-        for (int i = 0; i < myGame.getColumnCount(); i++) {
-            char status;
+    public String[] getRow(int r){
+        String[] row = new String[myGame.getColumnCount()];
+        for(int i = 0; i < myGame.getColumnCount(); i++){
+            String spotC = "";
             Connect4Column c = myGame.getColumn(i);
-            if (c.getSlot(r).getIsFilled()) {
-                if (c.getSlot(r).getIsRed()) {
-                    status = 'R';
+            if(c.getSlot(r).getIsFilled()){
+                if(c.getSlot(r).getIsRed()){
+                    spotC = "R";
                 }
-                else {
-                    status = 'Y';
+                else{
+                    spotC = "Y";
                 }
             }
-            else {
-                status = '-';
+            else{
+                spotC = "NA";
             }
-            row[i] = status;
+            row[i] = spotC;
         }
         return row;
     }
 
-    public int countRow(char[] row, boolean color) {
-        int count = 0;
-        for (char ch: row) {
-            if (ch == 'R' && color) {
-                count++;
-            }
-            else if (ch == 'Y' && !color) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    public boolean isEmpty(char[] row) {
-        for (char ch: row) {
-            if (ch != '-') {
+    public boolean empty(String[] row){
+        for(String s: row){
+            if(!(s.equals("NA"))){
                 return false;
             }
         }
         return true;
     }
 
-    public int testRow(char[] row, char[] rowUnder, boolean color) {
-        for (int i = 0; i < row.length; i++) {
-            if (row[i] == '-') {
-                if (rowUnder.length != 0) {
-                    if (rowUnder[i] == '-') {
-                        break;
-                    }
-                }
-                char[] temp = new char[row.length];
-                System.arraycopy(row, 0, temp, 0, row.length);
-                char status = color?'R':'Y';
-                temp[i] = status;
-                int count = 0;
-                for (char ch: temp) {
-                    if (ch == status) {
-                        count++;
-                    }
-                    else {
-                        count = 0;
-                    }
-
-                    if (count == 4) return i;
-                }
-            }
-        }
-        return -1;
-    }
-
-    public int pairCheck() {
-        for (int i = myGame.getRowCount() - 1; i >= 0; i--) {
-            char[] row = getRow(i);
-            if (isEmpty(row)) {
-                break;
-            }
-            int count = countRow(row, !iAmRed);
-            if (count < 2) {
-                break;
-            }
-
-            char[] rowUnder;
-            if (i + 1 == myGame.getRowCount()) {
-                rowUnder = new char[0];
-            }
-            else {
-                rowUnder = getRow(i + 1);
-            }
-
-            boolean[] blacklist = getBlacklistedColumns(true);
-            for (int test = 1; test < row.length - 2; test++) {
-
-                char enemy = iAmRed?'Y':'R';
-                if (row[test] == enemy && row[test + 1] == enemy && row[test - 1] == '-' && row[test + 2] == '-') {
-                    if (rowUnder.length != 0) {
-                        if (rowUnder[test - 1] == '-' || rowUnder[test + 2] == '-') {
-                            break;
-                        }
-                    }
-
-                    if (!blacklist[test - 1]) {
-                        return test - 1;
-                    }
-                    else if (!blacklist[test + 2]) {
-                        return test + 2;
-                    }
-                }
-
-
-                if (test != row.length - 3) {
-                    if (row[test] == enemy && row[test + 1] == '-' && row[test + 2] == enemy) {
-                        if (!blacklist[test + 1]) {
-                            return test + 1;
-                        }
-                    }
-                }
-            }
-        }
-
-        return -1;
-    }
-
-    // diagonal
-
-    public int stackColumn(boolean[] greylist, int column) {
-        Connect4Column mid = myGame.getColumn(column);
-        if (!mid.getIsFull() && !greylist[column]) {
-            return column;
-        }
-        return -1;
-    }
-    public int getDiagonalCount(int column, int lowest, boolean toCheck, boolean positive) {
+    public int rowCount(String[] row, boolean c){
         int count = 0;
-        int row;
+        for(String s: row){
+            if(s.equals("R") && c){
+                count++;
+            }
+            else if(s.equals("Y") && !(c)){
+                count++;
+            }
+        }
+        return count;
+    }
 
-        if(positive){
-            row = lowest + -1;
+    //diagonal
+
+//    public int countDiagonal(int low, int col, boolean check, boolean p){
+//        int count = 0;
+//        int row = 0;
+//
+//        // l
+//        if(p){
+//            row = low - 1;
+//        }
+//        else{
+//            row = low + 1;
+//        }
+//        for(int i = col - 1; i >= 0; i--){
+//            if(p){
+//                if(row >= 0){
+//                    Connect4Slot slot = myGame.getColumn(i).getSlot(row--);
+//                    if(slot.getIsFilled() && slot.getIsRed() == check){
+//                        count++;
+//                    }
+//                    else{
+//                        break;
+//                    }
+//                }
+//            }
+//            else{
+//                if(row < myGame.getRowCount()){
+//                    Connect4Slot slot = myGame.getColumn(i).getSlot(row++);
+//                    if(slot.getIsFilled() && slot.getIsRed() == check){
+//                        count++;
+//                    }
+//                    else{
+//                        break;
+//                    }
+//                }
+//            }
+//        }
+//
+//        // r
+//        if(p) {
+//            row = low + 1;
+//        }
+//        else{
+//            row = low - 1;
+//        }
+//
+//        for(int i = col + 1; i < myGame.getColumnCount(); i++){
+//            if(p){
+//                if(row < myGame.getRowCount()){
+//                    Connect4Slot slot = myGame.getColumn(i).getSlot(row++);
+//                    if(slot.getIsFilled() && slot.getIsRed() == check){
+//                        count++;
+//                    }
+//                    else{
+//                        break;
+//                    }
+//                }
+//            }
+//            else{
+//                if(row >= 0){
+//                    Connect4Slot slot = myGame.getColumn(i).getSlot(row--);
+//                    if(slot.getIsFilled() && slot.getIsRed() == check){
+//                        count++;
+//                    }
+//                    else{
+//                        break;
+//                    }
+//                }
+//            }
+//        }
+//        return count;
+//    }
+
+    public int countDiagonal(int column, int lowest, boolean check, boolean p) {
+        int count = 0;
+        int row = 0;
+
+        if(p){
+            row = lowest - 1;
         }
         else{
             row = lowest + 1;
         }
-
         for (int i = column - 1; i >= 0; i--) {
-            if (positive? row >= 0:row < myGame.getRowCount()) {
-                Connect4Slot slot = myGame.getColumn(i).getSlot(positive? row--:row++);
-                if (slot.getIsFilled() && slot.getIsRed() == toCheck) {
+            if (p? row >= 0:row < myGame.getRowCount()) {
+                Connect4Slot slot = myGame.getColumn(i).getSlot(p? row--:row++);
+                if (slot.getIsFilled() && slot.getIsRed() == check) {
                     count++;
                 }
                 else {
@@ -367,17 +388,16 @@ public class MyAgent extends Agent {
             }
         }
 
-        if(positive){
+        if(p){
             row = lowest + 1;
         }
         else{
-            row = lowest + -1;
+            row = lowest - 1;
         }
-
         for (int i = column + 1; i < myGame.getColumnCount(); i++) {
-            if (positive? row < myGame.getRowCount():row >= 0) {
-                Connect4Slot slot = myGame.getColumn(i).getSlot(positive? row++:row--);
-                if (slot.getIsFilled() && slot.getIsRed() == toCheck) {
+            if (p? row < myGame.getRowCount():row >= 0) {
+                Connect4Slot slot = myGame.getColumn(i).getSlot(p? row++:row--);
+                if (slot.getIsFilled() && slot.getIsRed() == check) {
                     count++;
                 }
                 else {
@@ -387,32 +407,33 @@ public class MyAgent extends Agent {
         }
         return count;
     }
-
-    // strat
-
-    public boolean[] getBlacklistedColumns(boolean strict) {
-        // blacklist
-        boolean[] columns = new boolean[myGame.getColumnCount()];
-        for (int i = 0; i < myGame.getColumnCount(); i++) {
-            if (myGame.getColumn(i).getIsFull()) {
-                columns[i] = true;
+    public boolean[] poorMoves(boolean e){
+        boolean[] col = new boolean[myGame.getColumnCount()];
+        for(int i = 0; i < myGame.getColumnCount(); i++){
+            if(myGame.getColumn(i).getIsFull()){
+                col[i] = true;
             }
         }
-        for (int i = 0; i < myGame.getColumnCount(); i++) {
-            if (!columns[i] && canWinInTwo(i, !iAmRed)) {
-                columns[i] = true;
+        for(int i = 0; i < myGame.getColumnCount(); i++){
+            if(!(col[i]) && nextCheck(i, !(iAmRed))){
+                col[i] = true;
             }
         }
-        // greylist
-        if (!strict) {
-            for (int i = 0; i < myGame.getColumnCount(); i++) {
-                if (!columns[i] && canWinInTwo(i, iAmRed)) {
-                    columns[i] = true;
+
+        if(!e){
+            for(int i = 0; i < myGame.getColumnCount(); i++){
+                if(!(col[i]) && nextCheck(i, iAmRed)){
+                    col[i] = true;
                 }
             }
         }
-        return columns;
+        return col;
     }
-
-
+    public int midStack(boolean[] ok, int col){
+        Connect4Column mid = myGame.getColumn(col);
+        if(!(mid.getIsFull()) && !(ok[col])){
+            return col;
+        }
+        return -1;
+    }
 }
